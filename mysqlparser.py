@@ -75,7 +75,7 @@ class MySQLParser(object):
 
         return output
 
-    def get_dict(self):
+    def get_dict(self, section=None, key=None):
         '''
         return the client config as a dictionary.
         '''
@@ -89,6 +89,10 @@ class MySQLParser(object):
                 else:
                     client_config[attribute[0]] = None
             ret[client[0]] = client_config
+        if section:
+            ret = ret.get(section)
+            if key:
+                ret = ret.get(key)
         return ret
 
     def save(self, dict_config=None, outfile=None):
