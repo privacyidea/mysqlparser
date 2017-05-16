@@ -202,6 +202,15 @@ class TestMySQLParser(unittest.TestCase):
                          "'SET NAMES utf8'")
 
         # check for includedir
-        #self.assertTrue("!includedir" in output)
+        self.assertTrue("!includedir /etc/mysql/conf.d/" in output)
 
+    def test_04_includedir(self):
+        CP = MySQLParser("testdata/only_include_dir.cnf")
+        config = CP.get_dict()
 
+        self.assertTrue("!includedir /etc/mysql/mysql.conf.d/" in config)
+        self.assertTrue("!includedir /etc/mysql/conf.d/" in config)
+
+        output = CP.format(config)
+        self.assertTrue("!includedir /etc/mysql/mysql.conf.d/" in output)
+        self.assertTrue("!includedir /etc/mysql/conf.d/" in output)

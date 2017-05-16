@@ -3,15 +3,16 @@ import codecs
 
 from pyparsing import Literal, White, Word, alphanums, CharsNotIn
 from pyparsing import Forward, Group, Optional, OneOrMore, ZeroOrMore
-from pyparsing import pythonStyleComment
+from pyparsing import pythonStyleComment, Empty, Combine
 
 
 class MySQLParser(object):
 
     # TODO: Fix the definition to work with !includedir
-    key = Word(alphanums + "_-!")
+    key = Word(alphanums + "_-")
     space = White().suppress()
     value = CharsNotIn("\n")
+    filename = Literal("!includedir") + Word(alphanums + " /.")
     comment = ("#")
     config_entry = (key + Optional(space)
                     + Optional(
@@ -27,8 +28,14 @@ class MySQLParser(object):
                           + Literal("]").suppress())
                           + Group(ZeroOrMore(Group(config_entry)))
                           )
-    
-    client_file = OneOrMore(client_block).ignore(pythonStyleComment)
+
+    include_block = Forward()
+    include_block << Group(Combine(filename) +
+                           Group(Group(Empty())))
+
+    # The file consists of client_blocks and include_files
+    client_file = OneOrMore( include_block| client_block ).ignore(
+        pythonStyleComment)
     
     file_header = """# File parsed and saved by privacyidea.\n\n"""
     
@@ -65,12 +72,16 @@ class MySQLParser(object):
         output = ""
         output += self.file_header
         for section, attributes in dict_config.items():
-            output += "[{0}]\n".format(section)
-            for k, v in attributes.iteritems():
-                if v:
-                    output += "{k} = {v}\n".format(k=k, v=v)
-                else:
-                    output += "{k}\n".format(k=k)
+            if section.startswith("!includedir"):
+                output += "{0}\n".format(section)
+            else:
+                output += "[{0}]\n".format(section)
+                for k, v in attributes.iteritems():
+                    if v:
+                        output += "{k} = {v}\n".format(k=k, v=v)
+                    else:
+                        output += "{k}\n".format(k=k)
+
             output += "\n"
 
         return output
@@ -86,7 +97,7 @@ class MySQLParser(object):
             for attribute in client[1]:
                 if len(attribute) > 1:
                     client_config[attribute[0]] = attribute[1]
-                else:
+                elif len(attribute) == 1:
                     client_config[attribute[0]] = None
             ret[client[0]] = client_config
         if section:
