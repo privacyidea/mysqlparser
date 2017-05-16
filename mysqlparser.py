@@ -101,7 +101,7 @@ class MySQLParser(object):
                     client_config[attribute[0]] = None
             ret[client[0]] = client_config
         if section:
-            ret = ret.get(section)
+            ret = ret.get(section, {})
             if key:
                 ret = ret.get(key)
         return ret
