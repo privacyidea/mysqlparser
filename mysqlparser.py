@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import codecs
+import os
 
 from pyparsing import Literal, White, Word, alphanums, CharsNotIn
 from pyparsing import Forward, Group, Optional, OneOrMore, ZeroOrMore
 from pyparsing import pythonStyleComment, Empty, Combine
+from setuptools.glob import iglob
 
 
 class MySQLParser(object):
@@ -113,3 +115,65 @@ class MySQLParser(object):
             for line in output.splitlines():
                 f.write(line + "\n")
             f.close()
+
+class MySQLConfiguration(object):
+    """
+    an object that takes care of collecting the mysql configuration from all directories
+
+    assumption: a section can be uniquely mapped to a single file! (the options
+    are not spread out over multiple files)
+    """
+    def __init__(self, root_filename):
+        self.root = MySQLParser(root_filename)
+        #: map a section name to a MySQLConfiguration instance.
+        #: if a section has no entry in _section_map, it is managed in `root`
+        self._section_map = {}
+        self._children = []
+        self._read_config()
+
+    def _read_child_config(self, filename):
+        """
+        Read configuration from *filename*, store MySQLConfiguration instances in self._children
+        and self._section_map
+        """
+        child_config = MySQLConfiguration(filename)
+        self._children.append(child_config)
+        for section, contents in child_config.get_dict().iteritems():
+            if section in self._section_map:
+                raise RuntimeError('Section {!r} already found in {!r}'.format(section,
+                                                                               self._section_map[section].root.file))
+            self._section_map[section] = child_config
+
+    def _read_config(self):
+        root_dct = self.root.get_dict()
+        base_directory = os.path.dirname(self.root.file)
+        for section, contents in root_dct.iteritems():
+            # find all !includedir lines, add configuration to self._children and self._sectionmap
+            if section.startswith('!includedir'):
+                relative_directory = section.split(' ', 1)[1]
+                directory = os.path.abspath(os.path.join(base_directory, relative_directory))
+                # include all files in the directory
+                for filename in iglob(os.path.join(directory, '*.cnf')):
+                    # order is not guaranteed, according to mysql docs
+                    # parse every file, return parsing result
+                    self._read_child_config(filename)
+            elif section.startswith('!'):
+                raise NotImplementedError()
+
+    def get_dict(self, section=None, key=None):
+        """
+        Get the MySQL configuration, with !includedir entries purged, and with all included files processed.
+        :return:
+        """
+        dct = self.root.get_dict()
+        for key in dct.keys():
+            if key.startswith('!'):
+                del dct[key]
+        # add children
+        for child in self._children:
+            dct.update(child.get_dict())
+        if section:
+            ret = dct.get(section, {})
+            if key:
+                ret = ret.get(key)
+        return dct

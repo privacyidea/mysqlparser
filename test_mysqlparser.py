@@ -21,7 +21,7 @@ import logging
 log = logging.getLogger(__name__)
 import unittest
 import os
-from mysqlparser import MySQLParser
+from mysqlparser import MySQLParser, MySQLConfiguration
 
 MY_CNF = """#
 # The MySQL database server configuration file.
@@ -184,7 +184,7 @@ class TestMySQLParser(unittest.TestCase):
         self.assertEqual(config.get("section2").get("key1"), "v1")
         self.assertEqual(config.get("section2").get("key2"), "v2")
         # A single line value will have None
-        self.assertEqual(config.get("section2").get("single-value"), None)
+        self.assertEqual(config.get("section2")["single-value"], None)
 
     def test_03_my_cnf(self):
         CP = MySQLParser("testdata/my.cnf")
@@ -214,3 +214,47 @@ class TestMySQLParser(unittest.TestCase):
         output = CP.format(config)
         self.assertTrue("!includedir /etc/mysql/mysql.conf.d/" in output)
         self.assertTrue("!includedir /etc/mysql/conf.d/" in output)
+
+class TestMySQLConfiguration(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_01_simple_cnf(self):
+        C = MySQLConfiguration("testdata/simple.cnf")
+        config = C.get_dict()
+        self.assertTrue("section" in config)
+        self.assertTrue("section2" in config)
+        self.assertEqual(config.get("section").get("key"), "value")
+        self.assertEqual(config.get("section2").get("key1"), "v1")
+        self.assertEqual(config.get("section2").get("key2"), "v2")
+
+    def test_02_simple2_cnf(self):
+        C = MySQLConfiguration("testdata/simple2.cnf")
+        config = C.get_dict()
+
+        self.assertTrue("section" in config)
+        self.assertTrue("section2" in config)
+        self.assertEqual(config.get("section").get("key"), "value")
+        self.assertEqual(config.get("section2").get("key1"), "v1")
+        self.assertEqual(config.get("section2").get("key2"), "v2")
+        # A single line value will have None
+        self.assertEqual(config.get("section2")["single-value"], None)
+
+    def test_03_includedir_resolution(self):
+        config = MySQLConfiguration("testdata/include.cnf")
+        dct = config.get_dict()
+
+        self.assertEqual(dct, {
+            'sectionA': {
+                'keyA': 'valueA'
+            },
+            'sectionB': {
+                'keyB': 'valueB'
+            },
+            'sectionC': {
+                'keyC': 'valueC',
+                'somevalue': None,
+            },
+        })
+
+
