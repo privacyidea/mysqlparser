@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import codecs
 import os
+from collections import defaultdict
 
+from copy import deepcopy
 from pyparsing import Literal, White, Word, alphanums, CharsNotIn
 from pyparsing import Forward, Group, Optional, OneOrMore, ZeroOrMore
 from pyparsing import pythonStyleComment, Empty, Combine
@@ -118,9 +120,9 @@ class MySQLParser(object):
 
 class MySQLConfiguration(object):
     """
-    an object that takes care of collecting the mysql configuration from all directories
+    an object that takes care of collecting the mysql configuration from all included directories
 
-    assumption: a section can be uniquely mapped to a single file! (the options
+    assumption: a section can be uniquely mapped to a single file! (i.e. the options
     are not spread out over multiple files)
     """
     def __init__(self, root_filename):
@@ -145,6 +147,11 @@ class MySQLConfiguration(object):
             self._section_map[section] = child_config
 
     def _read_config(self):
+        """
+        This initializes `_section_map` and _children.
+        """
+        self._section_map = {}
+        self._children = []
         root_dct = self.root.get_dict()
         base_directory = os.path.dirname(self.root.file)
         for section, contents in root_dct.iteritems():
@@ -177,3 +184,29 @@ class MySQLConfiguration(object):
             if key:
                 ret = ret.get(key)
         return dct
+
+    def save(self, new_config):
+        """
+        write all the config objects in *config* to the right files
+        """
+        config = deepcopy(new_config)
+        # iterate over all sections of which we know that they belong in another file
+        #: maps MySQLConfiguration objects to configuration
+        save_configs = defaultdict(dict)
+        for child_section, child in self._section_map.iteritems():
+            if child_section in config:
+                save_configs[child][child_section] = config[child_section]
+                del config[child_section]
+        # all remaining sections in `config` belong in `root`.
+        # now, save all children
+        for child, child_config in save_configs.iteritems():
+            child.save(child_config)
+        # add all !includedir directives
+        root_dct = self.root.get_dict()
+        for key, value in root_dct.iteritems():
+            if key.startswith('!'):
+                config[key] = value
+        # save the local configuration
+        self.root.save(config, self.root.file)
+        # re-read configuration!
+        self._read_config()

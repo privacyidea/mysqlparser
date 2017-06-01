@@ -258,3 +258,47 @@ class TestMySQLConfiguration(unittest.TestCase):
         })
 
 
+    def test_04_local_save(self):
+        C = MySQLConfiguration("testdata/simple.cnf")
+        cfg = C.get_dict()
+        self.assertNotIn('some-new-section', cfg)
+        cfg['some-new-section'] = {'some-new-key': 'some-new-value'}
+        cfg['section']['some'] = 'where over the rainbow'
+        C.save(cfg)
+
+        self.assertEqual(C.get_dict()['some-new-section']['some-new-key'], 'some-new-value')
+        self.assertEqual(C.get_dict()['section']['some'], 'where over the rainbow')
+        with open('testdata/simple.cnf', 'r') as f:
+            contents = f.read()
+            self.assertTrue('some-new-key = some-new-value' in contents)
+            self.assertTrue('some = where over the rainbow' in contents)
+
+    def test_04_child_save(self):
+        C = MySQLConfiguration("testdata/include.cnf")
+        cfg = C.get_dict()
+        self.assertNotIn('sectionD', cfg)
+        cfg['sectionA']['keyA'] = 'newValueA'
+        cfg['sectionB']['keyB123'] = 'valueB123'
+        cfg['sectionD'] = {'keyD': 'valueD'}
+        C.save(cfg)
+
+        C = MySQLConfiguration("testdata/include.cnf")
+        cfg = C.get_dict()
+
+        self.assertEqual(cfg['sectionA']['keyA'], 'newValueA')
+        self.assertEqual(cfg['sectionB']['keyB'], 'valueB')
+        self.assertEqual(cfg['sectionB']['keyB123'], 'valueB123')
+        self.assertEqual(cfg['sectionD']['keyD'], 'valueD')
+
+        with open('testdata/included/filea.cnf', 'r') as f:
+            contents = f.read()
+            self.assertTrue('keyA = newValueA' in contents)
+
+        with open('testdata/included/fileb.cnf', 'r') as f:
+            contents = f.read()
+            self.assertTrue('keyB123 = valueB123' in contents)
+
+        with open('testdata/include.cnf', 'r') as f:
+            contents = f.read()
+            self.assertTrue('[sectionD]' in contents)
+            self.assertTrue('keyD = valueD' in contents)
