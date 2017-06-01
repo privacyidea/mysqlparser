@@ -181,11 +181,12 @@ class MySQLConfiguration(object):
         # add children
         for child in self._children:
             dct.update(child.get_dict())
+        ret = dct
         if section:
             ret = dct.get(section, {})
             if key:
                 ret = ret.get(key)
-        return dct
+        return ret
 
     def save(self, new_config):
         """
