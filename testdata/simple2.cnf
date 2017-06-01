@@ -1,0 +1,8 @@
+[section]
+key = value
+some = thing
+
+[section2]
+single-value
+key1 = v1
+key2 = v2
