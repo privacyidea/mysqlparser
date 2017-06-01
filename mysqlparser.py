@@ -122,35 +122,37 @@ class MySQLConfiguration(object):
     """
     an object that takes care of collecting the mysql configuration from all included directories
 
-    assumption: a section can be uniquely mapped to a single file! (i.e. the options
-    are not spread out over multiple files)
+    assumption: a value can be uniquely mapped to a single file! (i.e. the options
+    are not overwritten in multiple files)
     """
     def __init__(self, root_filename):
         self.root = MySQLParser(root_filename)
-        #: map a section name to a MySQLConfiguration instance.
-        #: if a section has no entry in _section_map, it is managed in `root`
-        self._section_map = {}
+        #: map a key (given as (section, key)) to a MySQLConfiguration instance.
+        #: if a key has no entry in _key_map, it is managed in `root`
+        self._key_map = {}
         self._children = []
         self._read_config()
 
     def _read_child_config(self, filename):
         """
         Read configuration from *filename*, store MySQLConfiguration instances in self._children
-        and self._section_map
+        and self._key_map
         """
         child_config = MySQLConfiguration(filename)
         self._children.append(child_config)
         for section, contents in child_config.get_dict().iteritems():
-            if section in self._section_map:
-                raise RuntimeError('Section {!r} already found in {!r}'.format(section,
-                                                                               self._section_map[section].root.file))
-            self._section_map[section] = child_config
+            for key, value in contents.iteritems():
+                location = (section, key)
+                if location in self._key_map:
+                    raise RuntimeError('Value {!r}/{!r} already found in {!r}'.format(section, value,
+                                                                                      self._key_map[location].root.file))
+                self._key_map[location] = child_config
 
     def _read_config(self):
         """
-        This initializes `_section_map` and _children.
+        This initializes `_key_map` and _children.
         """
-        self._section_map = {}
+        self._key_map = {}
         self._children = []
         root_dct = self.root.get_dict()
         base_directory = os.path.dirname(self.root.file)
@@ -190,14 +192,23 @@ class MySQLConfiguration(object):
         write all the config objects in *config* to the right files
         """
         config = deepcopy(new_config)
-        # iterate over all sections of which we know that they belong in another file
+        # iterate over all values of which we know that they belong in another file
         #: maps MySQLConfiguration objects to configuration
-        save_configs = defaultdict(dict)
-        for child_section, child in self._section_map.iteritems():
+        save_configs = defaultdict(lambda: defaultdict(dict))
+        for (child_section, child_key), child in self._key_map.iteritems():
             if child_section in config:
-                save_configs[child][child_section] = config[child_section]
+                child_contents = config[child_section]
+                if child_key in child_contents:
+                    save_configs[child][child_section][child_key] = config[child_section][child_key]
+                    del config[child_section][child_key]
+                    if not config[child_section]:
+                        del config[child_section]
+        # find all keys that are added to sections for which entries in _value_map exist
+        for (child_section, child_key), child in self._key_map.iteritems():
+            if child_section in config:
+                save_configs[child][child_section].update(config[child_section])
                 del config[child_section]
-        # all remaining sections in `config` belong in `root`.
+        # all remaining keys in `config` belong in `root`.
         # now, save all children
         for child, child_config in save_configs.iteritems():
             child.save(child_config)
