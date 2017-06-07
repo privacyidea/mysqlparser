@@ -175,9 +175,9 @@ class MySQLConfiguration(object):
         :return:
         """
         dct = self.root.get_dict()
-        for key in dct.keys():
-            if key.startswith('!'):
-                del dct[key]
+        for dct_key in dct.keys():
+            if dct_key.startswith('!'):
+                del dct[dct_key]
         # add children
         for child in self._children:
             dct.update(child.get_dict())
