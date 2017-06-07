@@ -12,7 +12,6 @@ from setuptools.glob import iglob
 
 class MySQLParser(object):
 
-    # TODO: Fix the definition to work with !includedir
     key = Word(alphanums + "_-")
     space = White().suppress()
     value = CharsNotIn("\n")
@@ -125,8 +124,13 @@ class MySQLConfiguration(object):
     assumption: a value can be uniquely mapped to a single file! (i.e. the options
     are not overwritten in multiple files)
     """
-    def __init__(self, root_filename):
-        self.root = MySQLParser(root_filename)
+    def __init__(self, root_filename, parser_cls=MySQLParser):
+        """
+        :param root_filename: filename of the configuration file
+        :param parser_cls: you may pass another class than `MySQLParser` here, e.g. to edit files remotely.
+        """
+        self.parser_cls = parser_cls
+        self.root = parser_cls(root_filename)
         #: map a key (given as (section, key)) to a MySQLConfiguration instance.
         #: if a key has no entry in _key_map, it is managed in `root`
         self._key_map = {}
@@ -138,7 +142,7 @@ class MySQLConfiguration(object):
         Read configuration from *filename*, store MySQLConfiguration instances in self._children
         and self._key_map
         """
-        child_config = MySQLConfiguration(filename)
+        child_config = MySQLConfiguration(filename, self.parser_cls)
         self._children.append(child_config)
         for section, contents in child_config.get_dict().iteritems():
             for key, value in contents.iteritems():
@@ -196,15 +200,22 @@ class MySQLConfiguration(object):
         # iterate over all values of which we know that they belong in another file
         #: maps MySQLConfiguration objects to configuration
         save_configs = defaultdict(lambda: defaultdict(dict))
+        # find all keys which are updated in `config` and delegated to another file
         for (child_section, child_key), child in self._key_map.iteritems():
+            # check if `config` contains a value for `child_section` and `child_key`
             if child_section in config:
                 child_contents = config[child_section]
                 if child_key in child_contents:
+                    # delegate the value to the MySQLConfiguration object
                     save_configs[child][child_section][child_key] = config[child_section][child_key]
+                    # We have handled this value, remove it from `config`
                     del config[child_section][child_key]
+                    # Delete empty sections from `config`
                     if not config[child_section]:
                         del config[child_section]
-        # find all keys that are added to sections for which entries in _value_map exist
+        # find all keys that are *added* to sections for which entries in _value_map exist
+        # (i.e. the section is delegated to another config file)
+        # if the section has values in multiple files, one is chosen non-deterministically
         for (child_section, child_key), child in self._key_map.iteritems():
             if child_section in config:
                 save_configs[child][child_section].update(config[child_section])
