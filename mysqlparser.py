@@ -43,8 +43,10 @@ class MySQLParser(object):
     file_header = """# File parsed and saved by privacyidea.\n\n"""
     
     def __init__(self, infile="/etc/mysql/my.cnf",
-                 content=None):
+                 content=None,
+                 opener=open):
         self.file = None
+        self.opener = opener
         if content:
             self.content = content
         else:
@@ -55,10 +57,9 @@ class MySQLParser(object):
         """
         Reread the contents from the disk
         """
-        f = codecs.open(self.file, "r", "utf-8")
-        self.content = f.read()
-        f.close()
-        
+        with self.opener(self.file, 'rb') as f:
+            self.content = f.read().decode('utf-8')
+
     def get(self):
         """
         return the grouped config
@@ -112,10 +113,9 @@ class MySQLParser(object):
     def save(self, dict_config=None, outfile=None):
         if dict_config:
             output = self.format(dict_config)
-            f = codecs.open(outfile, 'w', 'utf-8')
-            for line in output.splitlines():
-                f.write(line + "\n")
-            f.close()
+            with self.opener(outfile, 'wb') as f:
+                for line in output.splitlines():
+                    f.write(line.encode('utf-8') + "\n")
 
 class MySQLConfiguration(object):
     """
@@ -124,13 +124,13 @@ class MySQLConfiguration(object):
     assumption: a value can be uniquely mapped to a single file! (i.e. the options
     are not overwritten in multiple files)
     """
-    def __init__(self, root_filename, parser_cls=MySQLParser):
+    def __init__(self, root_filename, opener=open):
         """
         :param root_filename: filename of the configuration file
-        :param parser_cls: you may pass another class than `MySQLParser` here, e.g. to edit files remotely.
+        :param open: you may pass another function to open files here, e.g. to edit files remotely.
         """
-        self.parser_cls = parser_cls
-        self.root = parser_cls(root_filename)
+        self._opener = opener
+        self.root = MySQLParser(root_filename, opener=opener)
         #: map a key (given as (section, key)) to a MySQLConfiguration instance.
         #: if a key has no entry in _key_map, it is managed in `root`
         self._key_map = {}
@@ -142,7 +142,7 @@ class MySQLConfiguration(object):
         Read configuration from *filename*, store MySQLConfiguration instances in self._children
         and self._key_map
         """
-        child_config = MySQLConfiguration(filename, self.parser_cls)
+        child_config = MySQLConfiguration(filename, self._opener)
         self._children.append(child_config)
         for section, contents in child_config.get_dict().iteritems():
             for key, value in contents.iteritems():
