@@ -7,7 +7,7 @@ from copy import deepcopy
 from pyparsing import Literal, White, Word, alphanums, CharsNotIn
 from pyparsing import Forward, Group, Optional, OneOrMore, ZeroOrMore
 from pyparsing import pythonStyleComment, Empty, Combine
-from setuptools.glob import iglob
+from glob import iglob
 
 
 class MySQLParser(object):
