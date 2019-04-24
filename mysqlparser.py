@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import codecs
 import os
 from collections import defaultdict
 
@@ -16,7 +15,7 @@ class MySQLParser(object):
     space = White().suppress()
     value = CharsNotIn("\n")
     filename = Literal("!includedir") + Word(alphanums + " /.")
-    comment = ("#")
+    comment = "#"
     config_entry = (key + Optional(space)
                     + Optional(
                         Literal("=").suppress() + Optional(space)
@@ -37,7 +36,7 @@ class MySQLParser(object):
                            Group(Group(Empty())))
 
     # The file consists of client_blocks and include_files
-    client_file = OneOrMore( include_block| client_block ).ignore(
+    client_file = OneOrMore(include_block | client_block).ignore(
         pythonStyleComment)
     
     file_header = """# File parsed and saved by privacyidea.\n\n"""
@@ -80,7 +79,7 @@ class MySQLParser(object):
                 output += "{0}\n".format(section)
             else:
                 output += "[{0}]\n".format(section)
-                for k, v in attributes.iteritems():
+                for k, v in attributes.items():
                     if v:
                         output += "{k} = {v}\n".format(k=k, v=v)
                     else:
@@ -115,7 +114,8 @@ class MySQLParser(object):
             output = self.format(dict_config)
             with self.opener(outfile, 'wb') as f:
                 for line in output.splitlines():
-                    f.write(line.encode('utf-8') + "\n")
+                    f.write(line.encode('utf-8') + b"\n")
+
 
 class MySQLConfiguration(object):
     """
@@ -127,7 +127,8 @@ class MySQLConfiguration(object):
     def __init__(self, root_filename, opener=open):
         """
         :param root_filename: filename of the configuration file
-        :param open: you may pass another function to open files here, e.g. to edit files remotely.
+        :param opener: you may pass another function to open files here,
+                       e.g. to edit files remotely.
         """
         self._opener = opener
         self.root = MySQLParser(root_filename, opener=opener)
@@ -144,12 +145,13 @@ class MySQLConfiguration(object):
         """
         child_config = MySQLConfiguration(filename, self._opener)
         self._children.append(child_config)
-        for section, contents in child_config.get_dict().iteritems():
-            for key, value in contents.iteritems():
+        for section, contents in child_config.get_dict().items():
+            for key, value in contents.items():
                 location = (section, key)
                 if location in self._key_map:
-                    raise RuntimeError('Value {!r}/{!r} already found in {!r}'.format(section, value,
-                                                                                      self._key_map[location].root.file))
+                    raise RuntimeError('Value {!r}/{!r} already found in '
+                                       '{!r}'.format(section, value,
+                                                     self._key_map[location].root.file))
                 self._key_map[location] = child_config
 
     def _read_config(self):
@@ -160,7 +162,7 @@ class MySQLConfiguration(object):
         self._children = []
         root_dct = self.root.get_dict()
         base_directory = os.path.dirname(self.root.file)
-        for section, contents in root_dct.iteritems():
+        for section, contents in root_dct.items():
             # find all !includedir lines, add configuration to self._children and self._sectionmap
             if section.startswith('!includedir'):
                 relative_directory = section.split(' ', 1)[1]
@@ -179,7 +181,7 @@ class MySQLConfiguration(object):
         :return:
         """
         dct = self.root.get_dict()
-        for dct_key in dct.keys():
+        for dct_key in list(dct.keys()):
             if dct_key.startswith('!'):
                 del dct[dct_key]
         # add children
@@ -201,7 +203,7 @@ class MySQLConfiguration(object):
         #: maps MySQLConfiguration objects to configuration
         save_configs = defaultdict(lambda: defaultdict(dict))
         # find all keys which are updated in `config` and delegated to another file
-        for (child_section, child_key), child in self._key_map.iteritems():
+        for (child_section, child_key), child in self._key_map.items():
             # check if `config` contains a value for `child_section` and `child_key`
             if child_section in config:
                 child_contents = config[child_section]
@@ -216,17 +218,17 @@ class MySQLConfiguration(object):
         # find all keys that are *added* to sections for which entries in _value_map exist
         # (i.e. the section is delegated to another config file)
         # if the section has values in multiple files, one is chosen non-deterministically
-        for (child_section, child_key), child in self._key_map.iteritems():
+        for (child_section, child_key), child in self._key_map.items():
             if child_section in config:
                 save_configs[child][child_section].update(config[child_section])
                 del config[child_section]
         # all remaining keys in `config` belong in `root`.
         # now, save all children
-        for child, child_config in save_configs.iteritems():
+        for child, child_config in save_configs.items():
             child.save(child_config)
         # add all !includedir directives
         root_dct = self.root.get_dict()
-        for key, value in root_dct.iteritems():
+        for key, value in root_dct.items():
             if key.startswith('!'):
                 config[key] = value
         # save the local configuration
