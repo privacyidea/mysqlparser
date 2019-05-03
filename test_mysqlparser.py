@@ -20,8 +20,7 @@
 import logging
 log = logging.getLogger(__name__)
 import unittest
-import os
-from mysqlparser import MySQLParser, MySQLConfiguration
+from .mysqlparser import MySQLParser, MySQLConfiguration
 
 MY_CNF = """#
 # The MySQL database server configuration file.
