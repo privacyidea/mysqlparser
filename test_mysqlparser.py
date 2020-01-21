@@ -18,9 +18,10 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-log = logging.getLogger(__name__)
-import unittest
+from shutil import copyfile, copytree
 from .mysqlparser import MySQLParser, MySQLConfiguration
+
+log = logging.getLogger(__name__)
 
 MY_CNF = """#
 # The MySQL database server configuration file.
@@ -157,147 +158,149 @@ key_buffer		= 16M
 """
 
 
+def test_parser_01_simple_cnf():
+    my_cnf = MySQLParser("testdata/simple.cnf")
+    config = my_cnf.get_dict()
+    assert "section" in config
+    assert "section2" in config
+    assert config.get("section").get("key") == "value"
+    assert config.get("section2").get("key1") == "v1"
+    assert config.get("section2").get("key2") == "v2"
 
 
-class TestMySQLParser(unittest.TestCase):
+def test_parser_02_simple2_cnf():
+    my_cnf = MySQLParser("testdata/simple2.cnf")
+    config = my_cnf.get_dict()
 
-    def setUp(self):
-        pass
-    
-    def test_01_simple_cnf(self):
-        CP = MySQLParser("testdata/simple.cnf")
-        config = CP.get_dict()
-        self.assertTrue("section" in config)
-        self.assertTrue("section2" in config)
-        self.assertEqual(config.get("section").get("key"), "value")
-        self.assertEqual(config.get("section2").get("key1"), "v1")
-        self.assertEqual(config.get("section2").get("key2"), "v2")
-
-    def test_02_simple2_cnf(self):
-        CP = MySQLParser("testdata/simple2.cnf")
-        config = CP.get_dict()
-
-        self.assertTrue("section" in config)
-        self.assertTrue("section2" in config)
-        self.assertEqual(config.get("section").get("key"), "value")
-        self.assertEqual(config.get("section2").get("key1"), "v1")
-        self.assertEqual(config.get("section2").get("key2"), "v2")
-        # A single line value will have None
-        self.assertEqual(config.get("section2")["single-value"], None)
-
-    def test_03_my_cnf(self):
-        CP = MySQLParser("testdata/my.cnf")
-        config = CP.get_dict()
-
-        output = CP.format(config)
-        # Check if all sections are present
-        self.assertTrue("mysqld_safe" in config)
-        self.assertTrue("mysqld" in config)
-        self.assertTrue("mysqldump" in config)
-        self.assertTrue("mysql" in config)
-        self.assertTrue("isamchk" in config)
-        # check strange values
-        self.assertEqual(config.get("mysqld").get("init-connect"),
-                         "'SET NAMES utf8'")
-
-        # check for includedir
-        self.assertTrue("!includedir /etc/mysql/conf.d/" in output)
-
-    def test_04_includedir(self):
-        CP = MySQLParser("testdata/only_include_dir.cnf")
-        config = CP.get_dict()
-
-        self.assertTrue("!includedir /etc/mysql/mysql.conf.d/" in config)
-        self.assertTrue("!includedir /etc/mysql/conf.d/" in config)
-
-        output = CP.format(config)
-        self.assertTrue("!includedir /etc/mysql/mysql.conf.d/" in output)
-        self.assertTrue("!includedir /etc/mysql/conf.d/" in output)
-
-class TestMySQLConfiguration(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def test_01_simple_cnf(self):
-        C = MySQLConfiguration("testdata/simple.cnf")
-        config = C.get_dict()
-        self.assertTrue("section" in config)
-        self.assertTrue("section2" in config)
-        self.assertEqual(config.get("section").get("key"), "value")
-        self.assertEqual(config.get("section2").get("key1"), "v1")
-        self.assertEqual(config.get("section2").get("key2"), "v2")
-
-    def test_02_simple2_cnf(self):
-        C = MySQLConfiguration("testdata/simple2.cnf")
-        config = C.get_dict()
-
-        self.assertTrue("section" in config)
-        self.assertTrue("section2" in config)
-        self.assertEqual(config.get("section").get("key"), "value")
-        self.assertEqual(config.get("section2").get("key1"), "v1")
-        self.assertEqual(config.get("section2").get("key2"), "v2")
-        # A single line value will have None
-        self.assertEqual(config.get("section2")["single-value"], None)
-
-    def test_03_includedir_resolution(self):
-        config = MySQLConfiguration("testdata/include.cnf")
-        dct = config.get_dict()
-
-        self.assertEqual(dct, {
-            'sectionA': {
-                'keyA': 'valueA'
-            },
-            'sectionB': {
-                'keyB': 'valueB'
-            },
-            'sectionC': {
-                'keyC': 'valueC',
-                'somevalue': None,
-            },
-        })
+    assert "section" in config
+    assert "section2" in config
+    assert config.get("section").get("key") == "value"
+    assert config.get("section2").get("key1") == "v1"
+    assert config.get("section2").get("key2") == "v2"
+    # A single line value will have None
+    assert config.get("section2")["single-value"] == None
 
 
-    def test_04_local_save(self):
-        C = MySQLConfiguration("testdata/simple.cnf")
-        cfg = C.get_dict()
-        self.assertNotIn('some-new-section', cfg)
-        cfg['some-new-section'] = {'some-new-key': 'some-new-value'}
-        cfg['section']['some'] = 'where over the rainbow'
-        C.save(cfg)
+def test_parser_03_my_cnf():
+    my_cnf = MySQLParser("testdata/my.cnf")
+    config = my_cnf.get_dict()
 
-        self.assertEqual(C.get_dict()['some-new-section']['some-new-key'], 'some-new-value')
-        self.assertEqual(C.get_dict()['section']['some'], 'where over the rainbow')
-        with open('testdata/simple.cnf', 'r') as f:
-            contents = f.read()
-            self.assertTrue('some-new-key = some-new-value' in contents)
-            self.assertTrue('some = where over the rainbow' in contents)
+    output = my_cnf.format(config)
+    # Check if all sections are present
+    assert "mysqld_safe" in config
+    assert "mysqld" in config
+    assert "mysqldump" in config
+    assert "mysql" in config
+    assert "isamchk" in config
+    # check strange values
+    assert config.get("mysqld").get("init-connect") == "'SET NAMES utf8'"
 
-    def test_04_child_save(self):
-        C = MySQLConfiguration("testdata/include.cnf")
-        cfg = C.get_dict()
-        self.assertNotIn('sectionD', cfg)
-        cfg['sectionA']['keyA'] = 'newValueA'
-        cfg['sectionB']['keyB123'] = 'valueB123'
-        cfg['sectionD'] = {'keyD': 'valueD'}
-        C.save(cfg)
+    # check for includedir
+    assert "!includedir /etc/mysql/conf.d/" in output
 
-        C = MySQLConfiguration("testdata/include.cnf")
-        cfg = C.get_dict()
 
-        self.assertEqual(cfg['sectionA']['keyA'], 'newValueA')
-        self.assertEqual(cfg['sectionB']['keyB'], 'valueB')
-        self.assertEqual(cfg['sectionB']['keyB123'], 'valueB123')
-        self.assertEqual(cfg['sectionD']['keyD'], 'valueD')
+def test_parser_04_includedir():
+    inc_cnf = MySQLParser("testdata/only_include_dir.cnf")
+    config = inc_cnf.get_dict()
 
-        with open('testdata/included/filea.cnf', 'r') as f:
-            contents = f.read()
-            self.assertTrue('keyA = newValueA' in contents)
+    assert "!includedir /etc/mysql/mysql.conf.d/" in config
+    assert "!includedir /etc/mysql/conf.d/" in config
 
-        with open('testdata/included/fileb.cnf', 'r') as f:
-            contents = f.read()
-            self.assertTrue('keyB123 = valueB123' in contents)
+    output = inc_cnf.format(config)
+    assert "!includedir /etc/mysql/mysql.conf.d/" in output
+    assert "!includedir /etc/mysql/conf.d/" in output
 
-        with open('testdata/include.cnf', 'r') as f:
-            contents = f.read()
-            self.assertTrue('[sectionD]' in contents)
-            self.assertTrue('keyD = valueD' in contents)
+
+def test_conf_01_simple_cnf():
+    simple_cnf = MySQLConfiguration("testdata/simple.cnf")
+    config = simple_cnf.get_dict()
+    assert "section" in config
+    assert "section2" in config
+    assert config.get("section").get("key") == "value"
+    assert config.get("section2").get("key1") == "v1"
+    assert config.get("section2").get("key2") == "v2"
+
+
+def test_conf_02_simple2_cnf():
+    simple_cnf = MySQLConfiguration("testdata/simple2.cnf")
+    config = simple_cnf.get_dict()
+
+    assert "section" in config
+    assert "section2" in config
+    assert config.get("section").get("key") == "value"
+    assert config.get("section2").get("key1") == "v1"
+    assert config.get("section2").get("key2") == "v2"
+    # A single line value will have None
+    assert config.get("section2")["single-value"] is None
+
+
+def test_conf_03_includedir_resolution():
+    config = MySQLConfiguration("testdata/include.cnf")
+    dct = config.get_dict()
+
+    assert dct == {
+        'sectionA': {
+            'keyA': 'valueA'
+        },
+        'sectionB': {
+            'keyB': 'valueB'
+        },
+        'sectionC': {
+            'keyC': 'valueC',
+            'somevalue': None,
+        },
+    }
+
+
+def test_conf_04_local_save(tmp_path):
+    simple_path = tmp_path / 'simple.cnf'
+    copyfile('testdata/simple.cnf', str(simple_path))
+    simple_cnf = MySQLConfiguration(str(simple_path))
+    cfg = simple_cnf.get_dict()
+    assert 'some-new-section' not in cfg
+    cfg['some-new-section'] = {'some-new-key': 'some-new-value'}
+    cfg['section']['some'] = 'where over the rainbow'
+    simple_cnf.save(cfg)
+
+    cfg = simple_cnf.get_dict()
+    assert cfg['some-new-section']['some-new-key'] == 'some-new-value'
+    assert cfg['section']['some'] == 'where over the rainbow'
+    with simple_path.open() as f:
+        contents = f.read()
+        assert 'some-new-key = some-new-value' in contents
+        assert 'some = where over the rainbow' in contents
+    simple_path.unlink()
+
+
+def test_conf_05_child_save(tmp_path):
+    tmp_cnf = tmp_path / 'inlude.cnf'
+    copyfile('testdata/include.cnf', str(tmp_cnf))
+    copytree('testdata/included', str(tmp_path / 'included'))
+    incl_cnf = MySQLConfiguration(str(tmp_cnf))
+    cfg = incl_cnf.get_dict()
+    assert 'sectionD' not in cfg
+    cfg['sectionA']['keyA'] = 'newValueA'
+    cfg['sectionB']['keyB123'] = 'valueB123'
+    cfg['sectionD'] = {'keyD': 'valueD'}
+    incl_cnf.save(cfg)
+
+    incl_cnf = MySQLConfiguration(str(tmp_cnf))
+    cfg = incl_cnf.get_dict()
+
+    assert cfg['sectionA']['keyA'] == 'newValueA'
+    assert cfg['sectionB']['keyB'] == 'valueB'
+    assert cfg['sectionB']['keyB123'] == 'valueB123'
+    assert cfg['sectionD']['keyD'] == 'valueD'
+
+    with (tmp_path / 'included/filea.cnf').open() as f:
+        contents = f.read()
+        assert 'keyA = newValueA' in contents
+
+    with (tmp_path / 'included/fileb.cnf').open() as f:
+        contents = f.read()
+        assert 'keyB123 = valueB123' in contents
+
+    with tmp_cnf.open() as f:
+        contents = f.read()
+        assert '[sectionD]' in contents
+        assert 'keyD = valueD' in contents

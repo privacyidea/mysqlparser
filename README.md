@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/privacyidea/mysqlparser.svg?branch=master)](https://travis-ci.org/privacyidea/mysqlparser)
 [![Coverage Status](https://coveralls.io/repos/privacyidea/mysqlparser/badge.svg?branch=master)](https://coveralls.io/github/privacyidea/mysqlparser?branch=master)
+![](https://github.com/privacyidea/mysqlparser/workflows/Python%20test/badge.svg)
 
 
 # MySQL my.cnf parser
