@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 import os
 from collections import defaultdict
 
@@ -177,7 +178,8 @@ class MySQLConfiguration(object):
 
     def get_dict(self, section=None, key=None):
         """
-        Get the MySQL configuration, with !includedir entries purged, and with all included files processed.
+        Get the MySQL configuration, with !includedir entries purged,
+        and with all included files processed.
         :return:
         """
         dct = self.root.get_dict()
