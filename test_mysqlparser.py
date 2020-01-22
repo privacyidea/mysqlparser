@@ -178,7 +178,7 @@ def test_parser_02_simple2_cnf():
     assert config.get("section2").get("key1") == "v1"
     assert config.get("section2").get("key2") == "v2"
     # A single line value will have None
-    assert config.get("section2")["single-value"] == None
+    assert config.get("section2")["single-value"] is None
 
 
 def test_parser_03_my_cnf():
